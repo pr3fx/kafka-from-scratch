@@ -7,6 +7,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include "response.c"
+#include "request.c"
+
 
 int main(int argc, char* argv[]) {
 	// Disable output buffering
@@ -52,8 +54,17 @@ int main(int argc, char* argv[]) {
 
     // You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
-    const int32_t correlation_id = 7;
-    struct response response = construct_response(correlation_id);
+
+	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+	printf("Client connected\n");
+    uint8_t read_buf[1024];
+    size_t read_size = read(client_fd, read_buf, sizeof(read_buf)-1);
+
+    printf("Received %zu bytes from client:\n", read_size);
+    struct request_header_v2 req = deser_request_header_v2(read_buf, read_size);
+    print_request_header_v2(&req);
+
+    struct response response = construct_response(req.correlation_id);
     uint8_t* ser_buf = (uint8_t*)malloc(8);
     serialise_response(&response, ser_buf);
     printf("ser_buf = [");
@@ -62,18 +73,15 @@ int main(int argc, char* argv[]) {
         printf("%d", ser_buf[i]);
     }
     printf("]\n");
+    printf("Writing back response with correlation_id: %08X\n", (uint32_t)response.correlation_id);
 
-	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
-	printf("Client connected\n");
-    char read_buf[1024];
-    read(client_fd, read_buf, sizeof(read_buf)-1);
-    printf("Received bytes from client\n");
     write(client_fd, ser_buf, response.message_size);
     printf("Sent bytes to client\n");
 	close(client_fd);
 	
 	close(server_fd);
 
+    free(req.client_id);
     free(ser_buf);
 	return 0;
 }

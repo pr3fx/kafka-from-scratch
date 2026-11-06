@@ -12,7 +12,7 @@ struct response {
  */
 struct response construct_response(const int32_t correlation_id)
 {
-    struct response resp = { .message_size = (int32_t)8, .correlation_id = (int32_t)7 };
+    struct response resp = { .message_size = (int32_t)8, .correlation_id = (int32_t)correlation_id };
     return resp;
 }
 
