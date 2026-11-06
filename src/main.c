@@ -6,6 +6,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include "response.c"
 
 int main(int argc, char* argv[]) {
 	// Disable output buffering
@@ -51,11 +52,28 @@ int main(int argc, char* argv[]) {
 
     // You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
+    const int32_t correlation_id = 7;
+    struct response response = construct_response(correlation_id);
+    uint8_t* ser_buf = (uint8_t*)malloc(8);
+    serialise_response(&response, ser_buf);
+    printf("ser_buf = [");
+    for (int i = 0; i < 8; i++) {
+        if (i != 0) printf(" ");
+        printf("%d", ser_buf[i]);
+    }
+    printf("]\n");
 
 	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
 	printf("Client connected\n");
+    char read_buf[1024];
+    read(client_fd, read_buf, sizeof(read_buf)-1);
+    printf("Received bytes from client\n");
+    write(client_fd, ser_buf, response.message_size);
+    printf("Sent bytes to client\n");
 	close(client_fd);
 	
 	close(server_fd);
+
+    free(ser_buf);
 	return 0;
 }
