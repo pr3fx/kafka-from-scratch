@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
     printf("]\n");
     printf("Writing back response with correlation_id: %08X\n", (uint32_t)resp.correlation_id);
 
-    write(client_fd, ser_buf, resp.message_size);
+    write(client_fd, ser_buf, resp.message_size+4);
     printf("Sent bytes to client\n");
 	close(client_fd);
 	
