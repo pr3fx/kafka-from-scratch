@@ -6,8 +6,8 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include "response.c"
 #include "request.c"
+#include "response.c"
 
 
 int main(int argc, char* argv[]) {
@@ -61,8 +61,8 @@ int main(int argc, char* argv[]) {
     size_t read_size = read(client_fd, read_buf, sizeof(read_buf)-1);
 
     printf("Received %zu bytes from client:\n", read_size);
-    struct RequestHeader_v2 req = deser_request_header_v2(read_buf, read_size);
-    print_request_header_v2(&req);
+    struct Request_v2 req = deser_request_v2(read_buf, read_size);
+    print_request_header_v2(&req.header);
 
     struct ResponseHeader_v0 resp = construct_response(req.correlation_id);
     print_response_header_v0(&resp);
@@ -82,6 +82,6 @@ int main(int argc, char* argv[]) {
 	
 	close(server_fd);
 
-    destroy_request_header_v2(&req);
+    destroy_request_v2(&req);
 	return 0;
 }

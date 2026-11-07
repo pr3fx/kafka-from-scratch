@@ -10,17 +10,21 @@ struct ClientID {
 };
 
 struct RequestHeader_v2 {
-    int32_t message_size;
     int16_t request_api_key;
     int16_t request_api_version;
     int32_t correlation_id;
     struct ClientID client_id;
 };
 
+struct Request_v2 {
+    int32_t message_size;
+    struct RequestHeader_v2 header;
+};
 
-void destroy_request_header_v2(struct RequestHeader_v2 *header)
+
+void destroy_request_v2(struct Request_v2 *req)
 {
-    free(header->client_id.data);
+    free(req->header.client_id.data);
 }
 
 int expand_client_id(struct ClientID *client_id)
@@ -51,32 +55,57 @@ void print_client_id_bytes(struct ClientID *client_id)
     }
 }
 
-struct RequestHeader_v2 deser_request_header_v2(uint8_t* buf, size_t buf_len)
+struct RequestHeader_v2 deser_request_header_v2(const uint8_t *buf, size_t buf_len)
 {
     struct RequestHeader_v2 req = { 0 };
-    size_t buf_pos = 0;
-    // Deserialise message size
-    for (int i = 0; i < 4; i++) req.message_size |= (int32_t)buf[buf_pos++] << ((3-i)*8);
+    if (buf_len < 10) return req; // Protects until after deser client_id len
+
     // Deserialise request api key
-    for (int i = 0; i < 2; i++) req.request_api_key |= (int16_t)buf[buf_pos++] << ((1-i)*8);
+    int i = 0;
+    for (i = 0; i < 2; i++) req.request_api_key |= (int16_t)*buf++ << ((1-i)*8);
     // Deserialise request api version
-    for (int i = 0; i < 2; i++) req.request_api_version |= (int16_t)buf[buf_pos++] << ((1-i)*8);
+    for (i = 0; i < 2; i++) req.request_api_version |= (int16_t)*buf++ << ((1-i)*8);
     // Deserialise correlation id
-    for (int i = 0; i < 4; i++) req.correlation_id |= (int32_t)buf[buf_pos++] << ((3-i)*8);
+    for (i = 0; i < 4; i++) req.correlation_id |= (int32_t)*buf++ << ((3-i)*8);
     // Copy over client id (message_size does not include the message_size field itself)
-    while (buf_pos < req.message_size + 4) append_to_client_id(&req.client_id, buf[buf_pos++]);
+    // First two bytes of client_id are the length of the client_id (-1 means null value
+    // and terminates the client_id byte sequence)
+    uint16_t client_id_len = 0;
+    for (i = 2; i--; ) {
+        client_id_len |= (uint16_t)(*buf) << ((i)*8);
+        append_to_client_id(&req.client_id, *buf++);
+    }
+    // From C23 unsigned to signed int casting is well-defined
+    if ((int16_t)(client_id_len) < 0) return req;
+    if (buf_len < 10 + client_id_len) {
+        free(req.client_id.data);
+        return (struct RequestHeader_v2){ 0 };
+    }
+
+    for (i = client_id_len; i--; ) append_to_client_id(&req.client_id, *buf++);
 
     return req;
 }
 
+struct Request_v2 deser_request_v2(const uint8_t *buf, size_t buf_len)
+{
+    if (buf_len < 4) return (struct Request_v2){ 0 };
+    // Deserialise message size
+    int32_t message_size = 0;
+    for (int i = 0; i < 4; i++) message_size |= (int32_t)*buf++ << ((3-i)*8);
+    // Deserialise header
+    struct RequestHeader_v2 header = deser_request_header_v2(buf, buf_len-4);
+    struct Request_v2 req = { .message_size = message_size, .header = header };
+
+    return req;
+}
 
 void print_request_header_v2(struct RequestHeader_v2* header)
 {
     printf("REQUEST HEADER v2\n");
-    printf("  .message_size:        %08X\n", (uint32_t)header->message_size);
-    printf("  .request_api_key:     %04X\n", (uint16_t)header->request_api_key);
-    printf("  .request_api_version: %04X\n", (uint16_t)header->request_api_version);
-    printf("  .correlation_id:      %08X\n", (uint32_t)header->correlation_id);
+    printf("  .request_api_key:     %d [0x%04X]\n", header->request_api_key, (uint16_t)header->request_api_key);
+    printf("  .request_api_version: %d [0x%04X]\n", header->request_api_version, (uint16_t)header->request_api_version);
+    printf("  .correlation_id:      %d [0x%08X]\n", header->correlation_id, (uint32_t)header->correlation_id);
     printf("  .client_id:           "); print_client_id_bytes(&header->client_id);
     printf("\n\n");
 }
