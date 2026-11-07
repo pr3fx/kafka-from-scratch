@@ -64,24 +64,24 @@ int main(int argc, char* argv[]) {
     struct request_header_v2 req = deser_request_header_v2(read_buf, read_size);
     print_request_header_v2(&req);
 
-    struct response response = construct_response(req.correlation_id);
-    uint8_t* ser_buf = (uint8_t*)malloc(8);
-    serialise_response(&response, ser_buf);
+    struct ResponseHeader_v0 resp = construct_response(req.correlation_id);
+    print_response_header_v0(&resp);
+    uint8_t ser_buf[8];
+    serialise_response(&resp, ser_buf);
     printf("ser_buf = [");
     for (int i = 0; i < 8; i++) {
         if (i != 0) printf(" ");
         printf("%d", ser_buf[i]);
     }
     printf("]\n");
-    printf("Writing back response with correlation_id: %08X\n", (uint32_t)response.correlation_id);
+    printf("Writing back response with correlation_id: %08X\n", (uint32_t)resp.correlation_id);
 
-    write(client_fd, ser_buf, response.message_size);
+    write(client_fd, ser_buf, resp.message_size);
     printf("Sent bytes to client\n");
 	close(client_fd);
 	
 	close(server_fd);
 
     free(req.client_id);
-    free(ser_buf);
 	return 0;
 }
