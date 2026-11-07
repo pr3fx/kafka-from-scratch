@@ -82,6 +82,6 @@ int main(int argc, char* argv[]) {
 	
 	close(server_fd);
 
-    free(req.client_id);
+    destroy_request_header_v2(&req);
 	return 0;
 }
