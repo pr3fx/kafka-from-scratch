@@ -64,17 +64,17 @@ int main(int argc, char* argv[]) {
     struct Request_v2 req = deser_request_v2(read_buf, read_size);
     print_request_header_v2(&req.header);
 
-    struct ResponseHeader_v0 resp = construct_response(req.correlation_id);
-    print_response_header_v0(&resp);
-    uint8_t ser_buf[8];
+    struct Response_v0 resp = response_from_request(&req);
+    print_response_header_v0(&resp.header);
+    uint8_t ser_buf[10];
     serialise_response(&resp, ser_buf);
     printf("ser_buf = [");
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 10; i++) {
         if (i != 0) printf(" ");
         printf("%d", ser_buf[i]);
     }
     printf("]\n");
-    printf("Writing back response with correlation_id: %08X\n", (uint32_t)resp.correlation_id);
+    printf("Writing back response with correlation_id: %08X\n", (uint32_t)resp.header.correlation_id);
 
     write(client_fd, ser_buf, resp.message_size+4);
     printf("Sent bytes to client\n");
