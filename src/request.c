@@ -63,8 +63,8 @@ struct RequestHeader_v2 deser_request_header_v2(uint8_t* buf, size_t buf_len)
     for (int i = 0; i < 2; i++) req.request_api_version |= (int16_t)buf[buf_pos++] << ((1-i)*8);
     // Deserialise correlation id
     for (int i = 0; i < 4; i++) req.correlation_id |= (int32_t)buf[buf_pos++] << ((3-i)*8);
-    // Copy over client id
-    while (buf_pos < req.message_size) append_to_client_id(&req.client_id, buf[buf_pos++]);
+    // Copy over client id (message_size does not include the message_size field itself)
+    while (buf_pos < req.message_size + 4) append_to_client_id(&req.client_id, buf[buf_pos++]);
 
     return req;
 }

@@ -10,7 +10,7 @@ struct ResponseHeader_v0 {
 struct ResponseHeader_v0 construct_response(const int32_t correlation_id)
 {
     struct ResponseHeader_v0 resp = { 
-        .message_size = (int32_t)8,
+        .message_size = (int32_t)4,
         .correlation_id = correlation_id 
     };
     return resp;
