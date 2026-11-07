@@ -15,7 +15,7 @@ set -e # Exit early if any commands fail
 VCPKG_ROOT="/opt/vcpkg"
 (
   cd "$(dirname "$0")" # Ensure compile steps are run within the repository directory
-  cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake
+  cmake -DCMAKE_BUILD_TYPE=Debug -B build -S . -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake
   cmake --build ./build
 )
 
@@ -23,4 +23,4 @@ VCPKG_ROOT="/opt/vcpkg"
 #
 # - Edit this to change how your program runs locally
 # - Edit .codecrafters/run.sh to change how your program runs remotely
-exec $(dirname "$0")/build/kafka "$@"
+exec gdb $(dirname "$0")/build/kafka "$@"
