@@ -1,7 +1,7 @@
 #include <stdint.h>
 
 
-struct request_header_v2 {
+struct RequestHeader_v2 {
     int32_t message_size;
     int16_t request_api_key;
     int16_t request_api_version;
@@ -10,9 +10,9 @@ struct request_header_v2 {
 };
 
 
-struct request_header_v2 deser_request_header_v2(uint8_t* buf, size_t buf_len)
+struct RequestHeader_v2 deser_request_header_v2(uint8_t* buf, size_t buf_len)
 {
-    struct request_header_v2 req = { 0 };
+    struct RequestHeader_v2 req = { 0 };
     size_t buf_pos = 0;
     // Deserialise message size
     for (int i = 0; i < 4; i++) req.message_size |= (int32_t)buf[buf_pos++] << ((3-i)*8);
@@ -31,11 +31,12 @@ struct request_header_v2 deser_request_header_v2(uint8_t* buf, size_t buf_len)
 }
 
 
-void print_request_header_v2(struct request_header_v2* header)
+void print_request_header_v2(struct RequestHeader_v2* header)
 {
     printf("REQUEST HEADER v2\n");
-    printf("  message_size: %08X\n", (uint32_t)header->message_size);
-    printf("  request_api_key: %04X\n", (uint16_t)header->request_api_key);
-    printf("  request_api_version: %04X\n", (uint16_t)header->request_api_version);
-    printf("  correlation_id: %08X\n", (uint32_t)header->correlation_id);
+    printf("  .message_size:        %08X\n", (uint32_t)header->message_size);
+    printf("  .request_api_key:     %04X\n", (uint16_t)header->request_api_key);
+    printf("  .request_api_version: %04X\n", (uint16_t)header->request_api_version);
+    printf("  .correlation_id:      %08X\n", (uint32_t)header->correlation_id);
+    printf("\n");
 }

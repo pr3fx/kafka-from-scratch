@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
     size_t read_size = read(client_fd, read_buf, sizeof(read_buf)-1);
 
     printf("Received %zu bytes from client:\n", read_size);
-    struct request_header_v2 req = deser_request_header_v2(read_buf, read_size);
+    struct RequestHeader_v2 req = deser_request_header_v2(read_buf, read_size);
     print_request_header_v2(&req);
 
     struct ResponseHeader_v0 resp = construct_response(req.correlation_id);
