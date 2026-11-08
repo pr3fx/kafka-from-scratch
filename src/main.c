@@ -4,10 +4,12 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <string.h>
+#include <threads.h>
 #include <errno.h>
 #include <unistd.h>
 #include "request.c"
 #include "response.c"
+#include "server.c"
 
 
 int main(int argc, char* argv[]) {
@@ -55,34 +57,18 @@ int main(int argc, char* argv[]) {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
 
-	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
-	printf("Client connected\n");
-    uint8_t read_buf[1024];
-    size_t read_size = read(client_fd, read_buf, sizeof(read_buf)-1);
+    int res = 0;
+    while (!res) {
+        int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+        printf("Client connected\n");
 
-    printf("Received %zu bytes from client:\n", read_size);
-    struct Request_v2 req = deser_request_v2(read_buf, read_size);
-    print_request_header_v2(&req.header);
-
-    struct Response_v0 resp = response_from_request(&req);
-    print_response_v0(&resp);
-    uint8_t ser_buf[256];
-    ssize_t message_size = serialise_response(&resp, ser_buf);
-    if (message_size < 0) {
-        destroy_response(&resp);
-        destroy_request_v2(&req);
-        close(client_fd);
-        close(server_fd);
-        exit(1);
+        thrd_t t;
+        printf("Starting request servicing thread...\n");
+        thrd_create(&t, service_request, &client_fd);
+        thrd_join(t, &res);
+        printf("Request serviced.\n");
     }
 
-    size_t bytes_to_write = message_size+4;
-    write(client_fd, ser_buf, bytes_to_write);
-    printf("Sent %zu bytes to client\n", bytes_to_write);
-
-	close(client_fd);
 	close(server_fd);
-    destroy_response(&resp);
-    destroy_request_v2(&req);
 	return 0;
 }
