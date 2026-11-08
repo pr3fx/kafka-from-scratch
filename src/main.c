@@ -65,23 +65,24 @@ int main(int argc, char* argv[]) {
     print_request_header_v2(&req.header);
 
     struct Response_v0 resp = response_from_request(&req);
-    print_response_header_v0(&resp.header);
-    uint8_t ser_buf[10];
-    serialise_response(&resp, ser_buf);
-    printf("ser_buf = [");
-    for (int i = 0; i < 10; i++) {
-        if (i != 0) printf(" ");
-        printf("%d", ser_buf[i]);
+    print_response_v0(&resp);
+    uint8_t ser_buf[256];
+    ssize_t message_size = serialise_response(&resp, ser_buf);
+    if (message_size < 0) {
+        destroy_response(&resp);
+        destroy_request_v2(&req);
+        close(client_fd);
+        close(server_fd);
+        exit(1);
     }
-    printf("]\n");
-    printf("Writing back response with correlation_id: %08X\n", (uint32_t)resp.header.correlation_id);
 
-    write(client_fd, ser_buf, resp.message_size+4);
-    printf("Sent bytes to client\n");
+    size_t bytes_to_write = message_size+4;
+    write(client_fd, ser_buf, bytes_to_write);
+    printf("Sent %zu bytes to client\n", bytes_to_write);
+
 	close(client_fd);
-	
 	close(server_fd);
-
+    destroy_response(&resp);
     destroy_request_v2(&req);
 	return 0;
 }
