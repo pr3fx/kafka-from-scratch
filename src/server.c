@@ -5,7 +5,7 @@ int service_request(void *arg)
 
     while (1) {
         // Peek for available data, if not close connection and return
-        int8_t res = recv(*client_fd, read_buf, 1, MSG_PEEK | MSG_DONTWAIT);
+        int8_t res = recv(*client_fd, read_buf, 1, MSG_PEEK);
         if (res <= 0) {
             break;
         }
