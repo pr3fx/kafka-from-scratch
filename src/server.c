@@ -1,16 +1,24 @@
 int service_request(void *arg)
 {
-    int *client_fd = arg;
-    uint8_t read_buf[1024];
+    int client_fd;
+    if (arg) {
+        client_fd = *(int*)arg;
+        free(arg);
+    } else {
+        printf("Could not read client_fd\n");
+        return -1;
+    }
+    uint8_t read_buf[1024];  // TODO: change to dynamically allocate based on
+                             // received header
 
     while (1) {
         // Peek for available data, if not close connection and return
-        int8_t res = recv(*client_fd, read_buf, 1, MSG_PEEK);
+        int8_t res = recv(client_fd, read_buf, 1, MSG_PEEK);
         if (res <= 0) {
             break;
         }
         // Receive request
-        size_t read_size = read(*client_fd, read_buf, sizeof(read_buf)-1);
+        size_t read_size = read(client_fd, read_buf, sizeof(read_buf)-1);
         printf("Received %zu bytes from client:\n", read_size);
         struct Request_v2 req = deser_request_v2(read_buf, read_size);
         print_request_header_v2(&req.header);
@@ -23,18 +31,18 @@ int service_request(void *arg)
         if (message_size < 0) {
             destroy_response(&resp);
             destroy_request_v2(&req);
-            close(*client_fd);
+            close(client_fd);
         }
 
         // Send response
         size_t bytes_to_write = message_size+4;
-        write(*client_fd, ser_buf, bytes_to_write);
+        write(client_fd, ser_buf, bytes_to_write);
         printf("Sent %zu bytes to client\n", bytes_to_write);
         destroy_response(&resp);
         destroy_request_v2(&req);
     }
 
-    close(*client_fd);
+    close(client_fd);
 
     return 0;
 }

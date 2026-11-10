@@ -12,12 +12,19 @@
 #include "server.c"
 
 
+static int server_fd;
+
+void close_server(void)
+{
+    close(server_fd);
+}
+
 int main(int argc, char* argv[]) {
 	// Disable output buffering
 	setbuf(stdout, NULL);
  	setbuf(stderr, NULL);
 	
-	int server_fd, client_addr_len;
+	int client_addr_len;
 	struct sockaddr_in client_addr;
 	
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -50,6 +57,11 @@ int main(int argc, char* argv[]) {
 		printf("Listen failed: %s \n", strerror(errno));
 		return 1;
 	}
+
+    if (atexit(close_server) != 0) {
+        printf("[ERROR] Could not register server cleanup function.\n");
+        return 1;
+    }
 	
 	printf("Waiting for a client to connect...\n");
 	client_addr_len = sizeof(client_addr);
@@ -57,16 +69,17 @@ int main(int argc, char* argv[]) {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
 
-    int res = 0;
-    while (!res) {
-        int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+    while (1) {
+        int *client_fd = (int *)malloc(sizeof(int));  // Thread process to free
+        if (!client_fd) {
+            printf("[ERROR] Could not allocate client_fd for client connection.\n");
+        }
+        *client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
         printf("Client connected\n");
 
         thrd_t t;
-        printf("Starting request servicing thread...\n");
-        thrd_create(&t, service_request, &client_fd);
-        thrd_join(t, &res);
-        printf("Request serviced.\n");
+        thrd_create(&t, service_request, client_fd);
+        thrd_detach(t);
     }
 
 	close(server_fd);
