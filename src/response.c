@@ -2,6 +2,7 @@
 
 
 #define API_VERSIONS_KEY 18
+#define DESCRIBE_TOPIC_PARTITIONS_KEY 75
 
 #define ERROR_UNKNOWN_SERVER_ERROR -1
 #define ERROR_NONE 0
@@ -42,23 +43,26 @@ struct Response_v0 {
 
 struct APIVersions_ResponseBody construct_api_versions_body(int16_t version)
 {
+    static const struct APIKeysElement supported_apis[] = {
+        (struct APIKeysElement){ .api_key=API_VERSIONS_KEY, .min_version=0, .max_version=4, .tag_buffer=0 },  // APIVersions
+        (struct APIKeysElement){ .api_key=DESCRIBE_TOPIC_PARTITIONS_KEY, .min_version=0, .max_version=0, .tag_buffer=0 }   // DescribeTopicPartitions
+    };
     struct APIVersions_ResponseBody body = { 0 };
     if (version < 0 || version > 4) {
         body.error_code = ERROR_UNSUPPORTED_VERSION;
         return body;
     }
 
-    body.api_keys = (struct APIKeysElement *)malloc(sizeof(struct APIKeysElement));
+    body.api_keys_arr_len = 1 + sizeof(supported_apis) / sizeof(supported_apis[0]);
+
+    body.api_keys = (struct APIKeysElement *)malloc(sizeof(supported_apis));
     if (!body.api_keys) {
         body.error_code = ERROR_UNKNOWN_SERVER_ERROR;
         return body;
     }
-    body.api_keys_arr_len = 2;
-    body.api_keys->api_key = 18;
-    body.api_keys->min_version = 0;
-    body.api_keys->max_version = 4;
-    body.api_keys->tag_buffer = 0;
-
+    for (int i = 0; i < body.api_keys_arr_len; i++) {
+        body.api_keys[i] = supported_apis[i];
+    }
 
     return body;
 }
