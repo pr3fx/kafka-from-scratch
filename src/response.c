@@ -214,7 +214,7 @@ ssize_t serialise_response(struct Response* resp, uint8_t* buf)
     if (size < 0) return -1;
     // Serialise header
     SERIALISE_INT32(&buf[4], resp->header.correlation_id); size += 4;
-    buf[5] = 0; size++; // TAG_BUFFER
+    buf[8] = 0; size++; // TAG_BUFFER
     // Serialise message size
     SERIALISE_INT32(buf, size); size += 4;
 
