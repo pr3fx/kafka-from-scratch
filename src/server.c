@@ -24,8 +24,8 @@ int service_request(void *arg)
         print_request_header_v2(&req.header);
 
         // Construct response
-        struct Response_v0 resp = response_from_request(&req);
-        print_response_v0(&resp);
+        struct Response resp = response_from_request(&req);
+        print_response(&resp);
         uint8_t ser_buf[256];
         ssize_t message_size = serialise_response(&resp, ser_buf);
         if (message_size < 0) {
@@ -35,9 +35,8 @@ int service_request(void *arg)
         }
 
         // Send response
-        size_t bytes_to_write = message_size+4;
-        write(client_fd, ser_buf, bytes_to_write);
-        printf("Sent %zu bytes to client\n", bytes_to_write);
+        write(client_fd, ser_buf, message_size);
+        printf("Sent %zu bytes to client\n", message_size);
         destroy_response(&resp);
         destroy_request_v2(&req);
     }

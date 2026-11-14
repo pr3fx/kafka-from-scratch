@@ -7,6 +7,9 @@
 #include <threads.h>
 #include <errno.h>
 #include <unistd.h>
+#include "sds/sds.c"
+#include "serdes.c"
+#include "types.c"
 #include "request.c"
 #include "response.c"
 #include "server.c"

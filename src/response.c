@@ -1,14 +1,67 @@
 #include <stdint.h>
 
 
-#define API_VERSIONS_KEY 18
-#define DESCRIBE_TOPIC_PARTITIONS_KEY 75
-
 #define ERROR_UNKNOWN_SERVER_ERROR -1
 #define ERROR_NONE 0
+#define ERROR_UNKNOWN_TOPIC_OR_PARTITION 3
 #define ERROR_UNSUPPORTED_VERSION 35
 
 
+/*
+ *   RESPONSE BODY DEFINITIONS AND METHODS (constructor/destructor)
+ */
+// DescribeTopicPartitions ----------------------------------------------------
+struct DescribeTopicPartitions_ResponseBody {
+    int32_t throttle_time_ms;
+    uint8_t topics_len;
+    struct Topic *topics;
+    struct TopicCursor next_cursor;
+};
+
+void print_describe_topic_partitions_body(struct DescribeTopicPartitions_ResponseBody *body)
+{
+    printf("  .throttle_time_ms  %04X\n", body->throttle_time_ms);
+    printf("  .topics_len        %01X\n", body->topics_len);
+}
+
+
+struct DescribeTopicPartitions_ResponseBody construct_describe_topic_partitions_body(struct DescribeTopicPartitions_RequestBody *req)
+{
+    struct DescribeTopicPartitions_ResponseBody body = { 0 };
+    body.topics = (struct Topic *)malloc(sizeof(struct Topic)*req->topics_len);
+    for (int i = 0; i < req->topics_len-1; i++) {
+        body.topics[i] = construct_topic(ERROR_UNKNOWN_TOPIC_OR_PARTITION, req->topics[i]);
+    }
+    body.topics_len = req->topics_len;
+    body.next_cursor = (struct TopicCursor){ .topic_name=sdsempty(), .partition_index=0 };
+
+    return body;
+}
+
+void destroy_describe_topic_partitions_body(struct DescribeTopicPartitions_ResponseBody* body)
+{
+    if (body->topics) {
+        for (int i = 1; i < body->topics_len; i++) destroy_topic(&body->topics[i]);
+        free(body->topics);
+    }
+    destroy_topic_cursor(&body->next_cursor);
+}
+
+ssize_t serialise_describe_topic_partitions_body(struct DescribeTopicPartitions_ResponseBody *body, uint8_t *buf)
+{
+    ssize_t size = 0;
+    SERIALISE_INT32(&buf[size], body->throttle_time_ms); size += 4;
+    buf[size++] = body->topics_len;
+    for (int i = 0; i < body->topics_len-1; i++) {
+        size += serialise_topic(&body->topics[i], &buf[size]);
+    }
+    size += serialise_topic_cursor(&body->next_cursor, &buf[size]);
+
+    return size;
+}
+
+
+// APIVersions ----------------------------------------------------------------
 struct APIKeysElement {
     int16_t api_key;
     int16_t min_version;
@@ -23,23 +76,6 @@ struct APIVersions_ResponseBody {
     int32_t throttle_time_ms;
     uint8_t tag_buffer;
 };
-
-struct ResponseHeader_v0 {
-    int32_t correlation_id;
-};
-
-struct ResponseBody {
-    int16_t type_key;
-    union {
-        struct APIVersions_ResponseBody api_versions_body;
-    } body;
-};
-
-struct Response_v0 {
-    struct ResponseHeader_v0 header;
-    struct ResponseBody body;
-};
-
 
 struct APIVersions_ResponseBody construct_api_versions_body(int16_t version)
 {
@@ -89,6 +125,27 @@ ssize_t serialise_api_versions_body(struct APIVersions_ResponseBody *body, uint8
     return size;
 }
 
+/*
+ *  FULL RESPONSE DEFINITIONS AND METHODS
+ */
+struct ResponseHeader {
+    int32_t correlation_id;
+};
+
+struct ResponseBody {
+    int16_t type_key;
+    union {
+        struct APIVersions_ResponseBody api_versions_body;
+        struct DescribeTopicPartitions_ResponseBody describe_topic_partitions_body;
+    } body;
+};
+
+struct Response {
+    struct ResponseHeader header;
+    struct ResponseBody body;
+};
+
+
 void print_api_versions_body(struct APIVersions_ResponseBody *body)
 {
     printf("  .error_code        %04X\n", body->error_code);
@@ -107,18 +164,24 @@ void print_api_versions_body(struct APIVersions_ResponseBody *body)
 }
 
 
-struct Response_v0 response_from_request(struct Request_v2 *req)
+struct Response response_from_request(struct Request_v2 *req)
 {
     // Header
-    struct ResponseHeader_v0 header = { .correlation_id = req->header.correlation_id };
+    struct ResponseHeader header = { .correlation_id = req->header.correlation_id };
 
     // Body
     struct ResponseBody body;
     switch (req->header.request_api_key) {
         case API_VERSIONS_KEY:
             body = (struct ResponseBody){
-                .type_key = req->header.request_api_key,
-                .body = construct_api_versions_body(req->header.request_api_version)
+                .type_key = API_VERSIONS_KEY,
+                .body.api_versions_body = construct_api_versions_body(req->header.request_api_version)
+            };
+            break;
+        case DESCRIBE_TOPIC_PARTITIONS_KEY:
+            body = (struct ResponseBody){
+                .type_key = DESCRIBE_TOPIC_PARTITIONS_KEY,
+                .body.describe_topic_partitions_body = construct_describe_topic_partitions_body((struct DescribeTopicPartitions_RequestBody *)&req->body.body)
             };
             break;
         default:
@@ -126,7 +189,7 @@ struct Response_v0 response_from_request(struct Request_v2 *req)
             break;
     }
 
-    return (struct Response_v0){
+    return (struct Response){
         .header = header,
         .body = body
     };
@@ -136,38 +199,46 @@ struct Response_v0 response_from_request(struct Request_v2 *req)
 /*
  *  Assumes buf is big enough
  */
-ssize_t serialise_response(struct Response_v0* resp, uint8_t* buf)
+ssize_t serialise_response(struct Response* resp, uint8_t* buf)
 {
     ssize_t size = -1;
     // Serialise body
     switch (resp->body.type_key) {
         case API_VERSIONS_KEY:
-            size = serialise_api_versions_body((struct APIVersions_ResponseBody*)&resp->body.body, buf+8);
+            size = serialise_api_versions_body((struct APIVersions_ResponseBody*)&resp->body.body, buf+9);
+            break;
+        case DESCRIBE_TOPIC_PARTITIONS_KEY:
+            size = serialise_describe_topic_partitions_body((struct DescribeTopicPartitions_ResponseBody *)&resp->body.body, buf+9);
+            break;
     }
     if (size < 0) return -1;
-    size += 4;
-    // Serialise message size
-    for (int i = 0; i < 4; i++) *buf++ = (uint8_t)((size & (0xFF000000 >> (i*8))) >> ((3-i)*8));
     // Serialise header
-    for (int i = 0; i < 4; i++) *buf++ = (uint8_t)((resp->header.correlation_id & (0xFF000000 >> (i*8))) >> ((3-i)*8));
+    SERIALISE_INT32(&buf[4], resp->header.correlation_id); size += 4;
+    buf[5] = 0; size++; // TAG_BUFFER
+    // Serialise message size
+    SERIALISE_INT32(buf, size); size += 4;
 
     return size;
 }
 
-void destroy_response(struct Response_v0* resp)
+void destroy_response(struct Response* resp)
 {
     switch (resp->body.type_key) {
         case API_VERSIONS_KEY:
             destroy_api_versions_body((struct APIVersions_ResponseBody*)&resp->body.body);
             break;
+        case DESCRIBE_TOPIC_PARTITIONS_KEY:
+            destroy_describe_topic_partitions_body((struct DescribeTopicPartitions_ResponseBody *)&resp->body.body);
+            break;
     }
 }
 
 
-void print_response_header_v0(struct ResponseHeader_v0 *resp)
+void print_response_header(struct ResponseHeader *resp)
 {
-    printf("RESPONSE HEADER v0:\n");
+    printf("RESPONSE HEADER:\n");
     printf("  .correlation_id  %08X\n", resp->correlation_id);
+    printf("  .tag_buffer      00\n");
 }
 
 void print_response_body(struct ResponseBody *body)
@@ -177,13 +248,16 @@ void print_response_body(struct ResponseBody *body)
         case API_VERSIONS_KEY:
             print_api_versions_body((struct APIVersions_ResponseBody*)&body->body);
             break;
+        case DESCRIBE_TOPIC_PARTITIONS_KEY:
+            print_describe_topic_partitions_body(&body->body.describe_topic_partitions_body);
+            break;
     }
 }
 
-void print_response_v0(struct Response_v0 *resp)
+void print_response(struct Response *resp)
 {
-    printf("RESPONSE v0 ------------------------------\n");
-    print_response_header_v0(&resp->header);
+    printf("RESPONSE ---------------------------------\n");
+    print_response_header(&resp->header);
     print_response_body(&resp->body);
     printf("------------------------------------------\n");
 }
