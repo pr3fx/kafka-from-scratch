@@ -111,15 +111,15 @@ void destroy_api_versions_body(struct APIVersions_ResponseBody *body)
 ssize_t serialise_api_versions_body(struct APIVersions_ResponseBody *body, uint8_t *buf)
 {
     ssize_t size = 0;
-    for (int i = 2; i--; ) buf[size++] = (uint8_t)((body->error_code & (0xFF00 >> ((1-i)*8))) >> ((i)*8));
+    SERIALISE_INT16(&buf[size], body->error_code); size += 2;
     buf[size++] = body->api_keys_arr_len;
     for (int j = 0; j < body->api_keys_arr_len - 1; j++) {
-        for (int i = 2; i--; ) buf[size++] = (uint8_t)((body->api_keys[j].api_key & (0xFF00 >> ((1-i)*8))) >> ((i)*8));
-        for (int i = 2; i--; ) buf[size++] = (uint8_t)((body->api_keys[j].min_version & (0xFF00 >> ((1-i)*8))) >> ((i)*8));
-        for (int i = 2; i--; ) buf[size++] = (uint8_t)((body->api_keys[j].max_version & (0xFF00 >> ((1-i)*8))) >> ((i)*8));
+        SERIALISE_INT16(&buf[size], body->api_keys[j].api_key); size += 2;
+        SERIALISE_INT16(&buf[size], body->api_keys[j].min_version); size += 2;
+        SERIALISE_INT16(&buf[size], body->api_keys[j].max_version); size += 2;
         buf[size++] = body->api_keys[j].tag_buffer;
     }
-    for (int i = 0; i < 4; i++) buf[size++] = (uint8_t)((body->throttle_time_ms & (0xFF000000 >> (i*8))) >> ((3-i)*8));
+    SERIALISE_INT16(&buf[size++], body->throttle_time_ms); size += 4;
     buf[size++] = body->tag_buffer;
 
     return size;
@@ -205,16 +205,20 @@ ssize_t serialise_response(struct Response* resp, uint8_t* buf)
     // Serialise body
     switch (resp->body.type_key) {
         case API_VERSIONS_KEY:
-            size = serialise_api_versions_body((struct APIVersions_ResponseBody*)&resp->body.body, buf+9);
+            size = serialise_api_versions_body((struct APIVersions_ResponseBody*)&resp->body.body, buf+8);
             break;
         case DESCRIBE_TOPIC_PARTITIONS_KEY:
             size = serialise_describe_topic_partitions_body((struct DescribeTopicPartitions_ResponseBody *)&resp->body.body, buf+9);
             break;
     }
     if (size < 0) return -1;
+
     // Serialise header
     SERIALISE_INT32(&buf[4], resp->header.correlation_id); size += 4;
-    buf[8] = 0; size++; // TAG_BUFFER
+    if (resp->body.type_key != API_VERSIONS_KEY) {
+        buf[8] = 0; size++; // TAG_BUFFER
+    }
+
     // Serialise message size
     SERIALISE_INT32(buf, size); size += 4;
 
