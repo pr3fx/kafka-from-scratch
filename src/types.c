@@ -62,7 +62,7 @@ ssize_t serialise_topic(struct Topic *topic, uint8_t *buf)
 {
     ssize_t size = 0;
     SERIALISE_INT16(&buf[size], topic->error_code); size += 2;
-    buf[size++] = (uint8_t)sdslen(topic->name);
+    buf[size++] = (uint8_t)sdslen(topic->name) + 1;
     for (int i = 0; i < sdslen(topic->name); i++) buf[size++] = (uint8_t)topic->name[i];
     for (int i = 0; i < 16; i++) buf[size++] = topic->topic_id[i];
     buf[size++] = (uint8_t)topic->is_internal;
