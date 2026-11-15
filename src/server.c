@@ -36,7 +36,9 @@ int service_request(void *arg)
 
         // Send response
         write(client_fd, ser_buf, message_size);
-        printf("Sent %zu bytes to client\n", message_size);
+        printf("Sent %zu bytes to client:\n", message_size);
+        for (int i = 0; i < message_size; i++) printf("%02X ", ser_buf[i]);
+        printf("\n");
         destroy_response(&resp);
         destroy_request_v2(&req);
     }
